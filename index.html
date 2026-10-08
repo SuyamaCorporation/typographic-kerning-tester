@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Typographic Kerning Tester</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  .preview-text { letter-spacing: var(--ls, 0em); font-kerning: auto; }
+  .pair-cell { display: inline-block; transition: letter-spacing 0.2s; }
+  @font-face { font-family: 'TestFont'; src: local('Georgia'), local('Times New Roman'); }
+</style>
+</head>
+<body class="bg-zinc-100 min-h-screen">
+<div class="max-w-5xl mx-auto p-4">
+  <header class="text-center py-6">
+    <h1 class="text-3xl font-bold text-zinc-800">Aa Typographic Kerning Tester</h1>
+    <p class="text-zinc-600 mt-1">Test kerning pairs, identify problematic combinations, generate adjustment reports</p>
+  </header>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Controls -->
+    <div class="space-y-4">
+      <div class="bg-white rounded-2xl shadow p-5 border border-zinc-200">
+        <h2 class="font-semibold text-zinc-700 mb-3">Font Settings</h2>
+        <div class="space-y-3">
+          <div>
+            <label class="text-xs font-medium text-gray-600">Font Family</label>
+            <input id="fontFamily" type="text" value="Georgia" placeholder="Font name..." class="w-full mt-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400">
+          </div>
+          <div>
+            <label class="text-xs font-medium text-gray-600">Custom Google Font</label>
+            <div class="flex gap-2 mt-1">
+              <input id="googleFont" type="text" placeholder="e.g. Roboto, Playfair Display" class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400">
+              <button onclick="loadGoogleFont()" class="bg-zinc-700 hover:bg-zinc-800 text-white px-3 py-2 rounded-lg text-sm">Load</button>
+            </div>
+          </div>
+          <div>
+            <label class="text-xs font-medium text-gray-600">Font Size (px)</label>
+            <input id="fontSize" type="range" min="12" max="120" value="48" oninput="updatePreview()" class="w-full mt-1 accent-zinc-700">
+            <div class="flex justify-between text-xs text-gray-400"><span>12px</span><span id="fontSizeVal">48px</span><span>120px</span></div>
+          </div>
+          <div>
+            <label class="text-xs font-medium text-gray-600">Font Weight</label>
+            <select id="fontWeight" onchange="updatePreview()" class="w-full mt-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400">
+              <option value="300">Light 300</option>
+              <option value="400" selected>Regular 400</option>
+              <option value="500">Medium 500</option>
+              <option value="600">SemiBold 600</option>
+              <option value="700">Bold 700</option>
+              <option value="900">Black 900</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs font-medium text-gray-600">Global Letter Spacing (em)</label>
+            <input id="globalSpacing" type="range" min="-0.1" max="0.3" step="0.005" value="0" oninput="updatePreview()" class="w-full mt-1 accent-zinc-700">
+            <div class="flex justify-between text-xs text-gray-400"><span>-0.1</span><span id="spacingVal">0.000</span><span>0.3</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pair Tester -->
+      <div class="bg-white rounded-2xl shadow p-5 border border-zinc-200">
+        <h2 class="font-semibold text-zinc-700 mb-3">Kerning Pair Test</h2>
+        <div class="space-y-3">
+          <div>
+            <label class="text-xs font-medium text-gray-600">Test Pair</label>
+            <input id="testPair" type="text" maxlength="4" placeholder="AV" value="AV" oninput="testKerningPair()" class="w-full mt-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400">
+          </div>
+          <div>
+            <label class="text-xs font-medium text-gray-600">Pair Spacing (em)</label>
+            <input id="pairSpacing" type="range" min="-0.15" max="0.15" step="0.005" value="0" oninput="testKerningPair()" class="w-full mt-1 accent-orange-500">
+            <div class="flex justify-between text-xs text-gray-400"><span>-0.15</span><span id="pairSpacingVal">0.000</span><span>+0.15</span></div>
+          </div>
+          <button onclick="savePairAdjustment()" class="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2 rounded-lg text-sm">Save Pair Adjustment</button>
+        </div>
+      </div>
+
+      <!-- Saved Pairs -->
+      <div class="bg-white rounded-2xl shadow p-4 border border-zinc-200">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="font-semibold text-zinc-700">Saved Pairs</h2>
+          <button onclick="exportReport()" class="text-xs bg-zinc-700 text-white px-3 py-1 rounded-lg hover:bg-zinc-800">Export</button>
+        </div>
+        <div id="savedPairsList" class="space-y-1 max-h-48 overflow-y-auto"></div>
+      </div>
+    </div>
+
+    <!-- Preview & Analysis -->
+    <div class="lg:col-span-2 space-y-4">
+      <!-- Main Preview -->
+      <div class="bg-white rounded-2xl shadow p-6 border border-zinc-200">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="font-semibold text-zinc-700">Preview</h2>
+          <select id="previewMode" onchange="updatePreview()" class="text-xs border border-gray-300 rounded-lg px-2 py-1">
+            <option value="headline">Headline</option>
+            <option value="alphabet">Alphabet</option>
+            <option value="pairs">Common Pairs</option>
+            <option value="custom">Custom Text</option>
+          </select>
+        </div>
+        <div id="mainPreview" class="bg-zinc-50 rounded-xl p-6 overflow-x-auto min-h-28 flex items-center justify-center"></div>
+        <div class="mt-3" id="customTextInput" style="display:none">
+          <textarea id="customText" rows="2" placeholder="Type your custom text..." oninput="updatePreview()" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400">WAVE Typography</textarea>
+        </div>
+      </div>
+
+      <!-- Problematic Pairs -->
+      <div class="bg-white rounded-2xl shadow p-5 border border-zinc-200">
+        <h2 class="font-semibold text-zinc-700 mb-3">Common Problematic Pairs</h2>
+        <div id="problematicPairs" class="grid grid-cols-3 sm:grid-cols-4 gap-2"></div>
+      </div>
+
+      <!-- Kerning Grid -->
+      <div class="bg-white rounded-2xl shadow p-5 border border-zinc-200">
+        <h2 class="font-semibold text-zinc-700 mb-3">Diagonal Letter Grid</h2>
+        <p class="text-xs text-gray-500 mb-3">Diagonal letters (A,V,W,Y) often need kerning with round letters and verticals</p>
+        <div id="kerningGrid" class="overflow-x-auto"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const PROBLEMATIC_PAIRS = [
+  'AV','AW','AY','AT','AC','AG','AO','AF','AP',
+  'VA','VO','Ve','va','ve','vi','vo','vu',
+  'WA','Wa','We','wo','WO',
+  'TA','Te','To','Tu','TA',
+  'LT','LV','LW','LY',
+  'FA','Fe','Fo',
+  'PA','Pe','Yo','YA',
+  'ff','fi','fl','fj','ft','rf','rt',
+  'Tv','Tw','Ty','ry','rn',
+  'Ke','Ko','Ku',
+];
+
+const DIAGONAL_LETTERS = ['A','V','W','Y','T','F','L','K','X','Z'];
+const TEST_LETTERS = ['A','B','H','I','M','N','O','P','V','W'];
+
+let currentFont = 'Georgia';
+let savedPairs = JSON.parse(localStorage.getItem('kerning_pairs') || '[]');
+
+function loadGoogleFont() {
+  const name = document.getElementById('googleFont').value.trim();
+  if (!name) return;
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(name)}:wght@300;400;500;600;700;900&display=swap`;
+  document.head.appendChild(link);
+  document.getElementById('fontFamily').value = name;
+  currentFont = name;
+  setTimeout(() => updatePreview(), 600);
+}
+
+function getFont() {
+  const f = document.getElementById('fontFamily').value || 'Georgia';
+  currentFont = f;
+  return f;
+}
+
+function updatePreview() {
+  const font = getFont();
+  const size = document.getElementById('fontSize').value;
+  const weight = document.getElementById('fontWeight').value;
+  const spacing = parseFloat(document.getElementById('globalSpacing').value);
+  document.getElementById('fontSizeVal').textContent = `${size}px`;
+  document.getElementById('spacingVal').textContent = spacing.toFixed(3);
+
+  const mode = document.getElementById('previewMode').value;
+  document.getElementById('customTextInput').style.display = mode === 'custom' ? 'block' : 'none';
+
+  let text = '';
+  if (mode === 'headline') text = 'WAVE Typography';
+  else if (mode === 'alphabet') text = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ\nabcdefghijklmnopqrstuvwxyz';
+  else if (mode === 'pairs') text = 'AV WA Te VA Yo fi fl ff';
+  else text = document.getElementById('customText').value || 'Type something';
+
+  const lines = text.split('\n');
+  document.getElementById('mainPreview').innerHTML = lines.map(line =>
+    `<div style="font-family:'${font}',serif;font-size:${size}px;font-weight:${weight};letter-spacing:${spacing}em;white-space:nowrap;line-height:1.2">${line}</div>`
+  ).join('');
+
+  renderProblematicPairs(font, size, weight);
+  renderKerningGrid(font);
+}
+
+function renderProblematicPairs(font, size, weight) {
+  const container = document.getElementById('problematicPairs');
+  const displaySize = Math.min(32, Math.round(size * 0.6));
+  container.innerHTML = PROBLEMATIC_PAIRS.slice(0, 24).map(pair => {
+    const saved = savedPairs.find(p => p.pair === pair);
+    const spacing = saved ? saved.spacing : 0;
+    const isAdjusted = saved && saved.spacing !== 0;
+    return `<div class="bg-zinc-50 rounded-lg p-2 text-center border ${isAdjusted ? 'border-orange-300' : 'border-zinc-200'} cursor-pointer hover:border-zinc-400"
+      onclick="loadPair('${pair}')"
+      title="${pair}: ${spacing > 0 ? '+' : ''}${spacing.toFixed(3)}em">
+      <span style="font-family:'${font}',serif;font-size:${displaySize}px;font-weight:${weight};letter-spacing:${spacing}em">${pair}</span>
+      <p class="text-xs text-gray-400 mt-1">${pair}${isAdjusted ? ` <span class='text-orange-500'>${spacing > 0 ? '+' : ''}${spacing.toFixed(2)}</span>` : ''}</p>
+    </div>`;
+  }).join('');
+}
+
+function renderKerningGrid(font) {
+  const container = document.getElementById('kerningGrid');
+  const headers = [''].concat(TEST_LETTERS);
+  let html = '<table class="text-center text-sm"><thead><tr>';
+  headers.forEach(h => { html += `<th class="p-1 text-xs text-gray-400">${h}</th>`; });
+  html += '</tr></thead><tbody>';
+  DIAGONAL_LETTERS.forEach(row => {
+    html += `<tr><td class="p-1 text-xs text-gray-400 font-bold">${row}</td>`;
+    TEST_LETTERS.forEach(col => {
+      const pair = row + col;
+      const saved = savedPairs.find(p => p.pair === pair);
+      const spacing = saved ? saved.spacing : 0;
+      const bg = spacing < -0.02 ? 'bg-red-50' : spacing > 0.02 ? 'bg-blue-50' : 'bg-white';
+      html += `<td class="p-0.5"><div class="${bg} rounded w-8 h-8 flex items-center justify-center cursor-pointer hover:bg-zinc-100 border border-zinc-100"
+        onclick="loadPair('${pair}')"
+        title="${pair}">
+        <span style="font-family:'${font}',serif;font-size:14px;letter-spacing:${spacing}em">${pair}</span>
+      </div></td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+function testKerningPair() {
+  const pair = document.getElementById('testPair').value || 'AV';
+  const spacing = parseFloat(document.getElementById('pairSpacing').value);
+  document.getElementById('pairSpacingVal').textContent = spacing.toFixed(3);
+
+  const font = getFont();
+  const weight = document.getElementById('fontWeight').value;
+  const preview = document.getElementById('mainPreview');
+
+  // Inject pair test temporarily
+  preview.innerHTML = `<div style="font-family:'${font}',serif;font-size:72px;font-weight:${weight}">
+    <span>|${pair[0]}</span><span style="letter-spacing:${spacing}em">${pair.slice(1)}</span><span>|</span>
+  </div>
+  <p style="font-size:14px;color:#9ca3af;margin-top:8px">Letter spacing: ${spacing > 0 ? '+' : ''}${spacing.toFixed(3)}em</p>`;
+}
+
+function loadPair(pair) {
+  document.getElementById('testPair').value = pair;
+  const saved = savedPairs.find(p => p.pair === pair);
+  if (saved) {
+    document.getElementById('pairSpacing').value = saved.spacing;
+    document.getElementById('pairSpacingVal').textContent = saved.spacing.toFixed(3);
+  } else {
+    document.getElementById('pairSpacing').value = 0;
+    document.getElementById('pairSpacingVal').textContent = '0.000';
+  }
+  testKerningPair();
+}
+
+function savePairAdjustment() {
+  const pair = document.getElementById('testPair').value.trim();
+  if (!pair || pair.length < 2) return alert('Enter at least 2 characters');
+  const spacing = parseFloat(document.getElementById('pairSpacing').value);
+  const existing = savedPairs.findIndex(p => p.pair === pair);
+  if (existing >= 0) savedPairs[existing].spacing = spacing;
+  else savedPairs.push({ pair, spacing, font: currentFont });
+  localStorage.setItem('kerning_pairs', JSON.stringify(savedPairs));
+  renderSavedPairs();
+  updatePreview();
+}
+
+function renderSavedPairs() {
+  const container = document.getElementById('savedPairsList');
+  if (savedPairs.length === 0) { container.innerHTML = '<p class="text-gray-400 text-xs italic">No pairs saved</p>'; return; }
+  container.innerHTML = savedPairs.map(p => `
+    <div class="flex items-center justify-between text-xs bg-zinc-50 rounded-lg px-2 py-1">
+      <span class="font-mono font-bold text-zinc-800">"${p.pair}"</span>
+      <span class="${p.spacing < 0 ? 'text-red-500' : p.spacing > 0 ? 'text-blue-500' : 'text-gray-400'}">${p.spacing > 0 ? '+' : ''}${p.spacing.toFixed(3)}em</span>
+      <button onclick="savedPairs=savedPairs.filter(x=>x.pair!=='${p.pair}');localStorage.setItem('kerning_pairs',JSON.stringify(savedPairs));renderSavedPairs();updatePreview()" class="text-gray-300 hover:text-red-400">✕</button>
+    </div>`).join('');
+}
+
+function exportReport() {
+  const font = getFont();
+  let report = `KERNING REPORT\nFont: ${font}\nDate: ${new Date().toLocaleDateString()}\n\n`;
+  report += `Saved Pair Adjustments (${savedPairs.length})\n${'='.repeat(40)}\n`;
+  savedPairs.forEach(p => {
+    report += `Pair: "${p.pair}" → ${p.spacing > 0 ? '+' : ''}${p.spacing.toFixed(3)}em\n`;
+  });
+  report += `\nRecommended OpenType kern values:\n`;
+  savedPairs.forEach(p => {
+    const unitsEm = Math.round(p.spacing * 1000);
+    report += `  @{${p.pair[0]}} ${p.pair[1]} ${unitsEm}\n`;
+  });
+  const blob = new Blob([report], {type: 'text/plain'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `kerning-${font.replace(/\s+/g,'-').toLowerCase()}.txt`;
+  a.click();
+}
+
+document.getElementById('previewMode').addEventListener('change', updatePreview);
+renderSavedPairs();
+updatePreview();
+</script>
+</body>
+</html>
